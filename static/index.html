@@ -12,16 +12,25 @@
             padding: 20px;
             text-align: center;
         }
-        .upload-container {
-            border: 2px dashed #ccc;
-            padding: 20px;
-            margin: 20px 0;
-            border-radius: 5px;
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
         }
-        #preview {
-            max-width: 280px;
-            margin: 10px auto;
-            display: none;
+        .drawing-container {
+            position: relative;
+            margin: 20px 0;
+        }
+        #drawingCanvas {
+            border: 2px solid #000;
+            background-color: black;
+            cursor: crosshair;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
         }
         button {
             background-color: #4CAF50;
@@ -34,6 +43,9 @@
         }
         button:disabled {
             background-color: #cccccc;
+        }
+        #clearBtn {
+            background-color: #f44336;
         }
         #result {
             margin-top: 20px;
@@ -49,47 +61,157 @@
             background-color: #f2dede;
             color: #a94442;
         }
+        .upload-section {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            border-radius: 5px;
+            width: 100%;
+        }
+        .mode-switcher {
+            margin: 15px 0;
+        }
+        .mode-btn {
+            background-color: #2196F3;
+        }
+        .active-mode {
+            background-color: #0b7dda;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
-    <h1>Распознавание рукописных цифр</h1>
-    <p>Загрузите изображение с рукописной цифрой (0-9)</p>
+    <div class="container">
+        <h1>Распознавание рукописных цифр</h1>
 
-    <div class="upload-container">
-        <input type="file" id="fileInput" accept="image/*">
-        <p>или перетащите изображение сюда</p>
-        <img id="preview" alt="Предпросмотр">
+        <div class="mode-switcher">
+            <button id="drawModeBtn" class="mode-btn active-mode">Режим рисования</button>
+            <button id="uploadModeBtn" class="mode-btn">Режим загрузки</button>
+        </div>
+
+        <div id="drawSection">
+            <p>Нарисуйте цифру в поле ниже:</p>
+            <div class="drawing-container">
+                <canvas id="drawingCanvas" width="280" height="280"></canvas>
+            </div>
+            <div class="button-group">
+                <button id="clearBtn">Очистить</button>
+                <button id="recognizeBtn">Распознать</button>
+            </div>
+        </div>
+
+        <div id="uploadSection" style="display: none;">
+            <div class="upload-section">
+                <p>Загрузите изображение с рукописной цифрой:</p>
+                <input type="file" id="fileInput" accept="image/*">
+                <p>или перетащите изображение сюда</p>
+                <img id="preview" style="max-width: 280px; display: none;" alt="Предпросмотр">
+            </div>
+            <div class="button-group">
+                <button id="uploadRecognizeBtn">Распознать</button>
+            </div>
+        </div>
+
+        <div id="result"></div>
     </div>
 
-    <button id="recognizeBtn" disabled>Распознать цифру</button>
-
-    <div id="result"></div>
-
     <script>
+        // Элементы интерфейса
+        const drawSection = document.getElementById('drawSection');
+        const uploadSection = document.getElementById('uploadSection');
+        const drawModeBtn = document.getElementById('drawModeBtn');
+        const uploadModeBtn = document.getElementById('uploadModeBtn');
+        const canvas = document.getElementById('drawingCanvas');
+        const clearBtn = document.getElementById('clearBtn');
+        const recognizeBtn = document.getElementById('recognizeBtn');
         const fileInput = document.getElementById('fileInput');
         const preview = document.getElementById('preview');
-        const recognizeBtn = document.getElementById('recognizeBtn');
+        const uploadRecognizeBtn = document.getElementById('uploadRecognizeBtn');
         const resultDiv = document.getElementById('result');
 
-        // Обработка выбора файла
-        fileInput.addEventListener('change', function(e) {
-            handleFile(e.target.files[0]);
-        });
+        // Контекст рисования
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
 
-        // Обработка перетаскивания файла
-        document.addEventListener('dragover', function(e) {
-            e.preventDefault();
-        });
+        // Настройки рисования
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 15;
+        ctx.lineCap = 'round';
 
-        document.addEventListener('drop', function(e) {
+        // Очистка холста
+        function clearCanvas() {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // Инициализация
+        clearCanvas();
+
+        // Обработчики событий рисования
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('touchstart', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('touchmove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('touchend', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        function startDrawing(e) {
+            isDrawing = true;
+            draw(e);
             e.preventDefault();
-            if (e.dataTransfer.files.length) {
-                handleFile(e.dataTransfer.files[0]);
-                fileInput.files = e.dataTransfer.files;
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+
+            // Получаем координаты
+            const rect = canvas.getBoundingClientRect();
+            let clientX, clientY;
+
+            if (e.type.includes('touch')) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
             }
+
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            // Рисуем
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+            ctx.beginPath();
+        }
+
+        // Очистка холста
+        clearBtn.addEventListener('click', clearCanvas);
+
+        // Переключение между режимами
+        drawModeBtn.addEventListener('click', () => {
+            drawSection.style.display = 'block';
+            uploadSection.style.display = 'none';
+            drawModeBtn.classList.add('active-mode');
+            uploadModeBtn.classList.remove('active-mode');
         });
 
-        function handleFile(file) {
+        uploadModeBtn.addEventListener('click', () => {
+            drawSection.style.display = 'none';
+            uploadSection.style.display = 'block';
+            uploadModeBtn.classList.add('active-mode');
+            drawModeBtn.classList.remove('active-mode');
+        });
+
+        // Обработка загрузки файла
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
             if (!file.type.match('image.*')) {
                 showResult('Пожалуйста, выберите файл изображения', false);
                 return;
@@ -99,21 +221,66 @@
             reader.onload = function(e) {
                 preview.src = e.target.result;
                 preview.style.display = 'block';
-                recognizeBtn.disabled = false;
-                resultDiv.style.display = 'none';
             };
             reader.readAsDataURL(file);
-        }
+        });
 
-        // Отправка на сервер
+        // Обработка перетаскивания файла
+        uploadSection.addEventListener('dragover', function(e) {
+            e.preventDefault();
+        });
+
+        uploadSection.addEventListener('drop', function(e) {
+            e.preventDefault();
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                const event = new Event('change');
+                fileInput.dispatchEvent(event);
+            }
+        });
+
+        // Отправка нарисованного изображения
         recognizeBtn.addEventListener('click', async function() {
-            if (!fileInput.files.length) return;
+            // Создаем временный холст для подготовки изображения
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 28;
+            tempCanvas.height = 28;
+            const tempCtx = tempCanvas.getContext('2d');
 
-            recognizeBtn.disabled = true;
+            // Масштабируем и инвертируем цвета
+            tempCtx.drawImage(canvas, 0, 0, 28, 28);
+            const imageData = tempCtx.getImageData(0, 0, 28, 28);
+
+            // Инверсия цветов (MNIST использует белые цифры на черном фоне)
+            for (let i = 0; i < imageData.data.length; i += 4) {
+                const brightness = 255 - imageData.data[i];
+                imageData.data[i] = brightness;
+                imageData.data[i + 1] = brightness;
+                imageData.data[i + 2] = brightness;
+            }
+            tempCtx.putImageData(imageData, 0, 0);
+
+            // Конвертируем в Blob и отправляем
+            tempCanvas.toBlob(async (blob) => {
+                await sendImage(blob);
+            }, 'image/png');
+        });
+
+        // Отправка загруженного изображения
+        uploadRecognizeBtn.addEventListener('click', async function() {
+            if (!fileInput.files.length) {
+                showResult('Пожалуйста, выберите изображение', false);
+                return;
+            }
+            await sendImage(fileInput.files[0]);
+        });
+
+        // Функция отправки изображения на сервер
+        async function sendImage(imageBlob) {
             resultDiv.style.display = 'none';
 
             const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+            formData.append('file', imageBlob, 'digit.png');
 
             try {
                 const response = await fetch('/predict/', {
@@ -137,11 +304,10 @@
                     message = errData.detail || message;
                 } catch (e) {}
                 showResult(message, false);
-            } finally {
-                recognizeBtn.disabled = false;
             }
-        });
+        }
 
+        // Отображение результата
         function showResult(message, isSuccess) {
             resultDiv.innerHTML = message;
             resultDiv.className = isSuccess ? 'success' : 'error';
