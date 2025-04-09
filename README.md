@@ -2,8 +2,8 @@
 
 ---
 
-### [Гайд v1](./How-to-do-v1)
-### [Гайд v2](./How-to-do-v2.md)
+### [Гайд v1](guides/How-to-do-v1.md)
+### [Гайд v2](guides/How-to-do-v2.md)
 
 ---
 

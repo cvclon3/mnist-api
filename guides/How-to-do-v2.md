@@ -100,13 +100,13 @@
 
 ```
 mnist-recognition-api/
-├── main.py                # Основной файл серверного приложения FastAPI
+├── main.py                 # Основной файл серверного приложения FastAPI
 ├── my_mnist_model_savedmodel.keras # Предварительно обученная модель Keras
-├── requirements.txt       # Список зависимостей Python
-├── How-to-do.md           # (Черновик методички, не используется напрямую)
+├── requirements.txt        # Список зависимостей Python
+├── mnist-test-jpgs.tar.gz  # (База данных mnist в формате .jpg)
 └── static/
-    ├── index.html         # Файл HTML с пользовательским интерфейсом
-    └── test_digits/       # Директория с примерами изображений цифр
+    ├── index.html          # Файл HTML с пользовательским интерфейсом
+    └── test_digits/        # Директория с примерами изображений цифр
         ├── 0.jpg
         ├── 1.jpg
         # ... и т.д. до 9.jpg
@@ -224,7 +224,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 ```python
 # Загрузка ML модели
-MODEL_PATH = 'my_mnist_model_savedmodel.keras'  # Путь к файлу модели
+MODEL_PATH = '../my_mnist_model_savedmodel.keras'  # Путь к файлу модели
 try:
     # Загружаем модель с помощью TensorFlow/Keras
     model = tf.keras.models.load_model(MODEL_PATH)
