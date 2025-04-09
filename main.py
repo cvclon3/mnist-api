@@ -1,13 +1,15 @@
 import numpy as np
 import logging
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from PIL import Image
 import io
 import tensorflow as tf
 from pathlib import Path
 import time
+import os
 
 # Настройка логгирования
 logging.basicConfig(level=logging.INFO)
@@ -19,13 +21,17 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Настройка CORS (для доступа из браузера)
+# Настройка CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Монтирование статики
+os.makedirs("static/test_digits", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Загрузка модели
 MODEL_PATH = 'my_mnist_model_savedmodel.keras'
@@ -37,73 +43,55 @@ except Exception as e:
     raise RuntimeError(f"Не удалось загрузить модель: {str(e)}")
 
 
-@app.get("/", include_in_schema=False)
-async def root():
+def preprocess_image(image: Image.Image) -> np.ndarray:
+    """Предобработка изображения для модели MNIST"""
+    image = image.convert('L').resize((28, 28))
+    image_array = 255 - np.array(image)  # Инверсия цветов
+    image_array = image_array.astype('float32') / 255.0
+    return image_array.reshape(1, 28, 28, 1)
+
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_interface():
+    """Возвращает HTML-интерфейс"""
     return FileResponse("static/index.html")
 
 
-@app.post("/predict/", response_model=dict)
+@app.post("/predict/")
 async def predict_digit(file: UploadFile = File(...)):
-    """
-    Распознавание рукописной цифры на изображении
-
-    Параметры:
-    - file: Изображение в формате PNG/JPG/JPEG
-
-    Возвращает:
-    - digit: Распознанная цифра (0-9)
-    - confidence: Уверенность модели (0-1)
-    - processing_time: Время обработки в секундах
-    """
+    """Распознавание рукописной цифры"""
     start_time = time.time()
 
-    # Проверка типа файла
     if not file.content_type.startswith('image/'):
-        error_msg = f"Неподдерживаемый тип файла: {file.content_type}"
-        logger.warning(error_msg)
-        raise HTTPException(status_code=400, detail=error_msg)
+        raise HTTPException(400, detail="Требуется изображение")
 
     try:
-        # Чтение и предобработка изображения
         contents = await file.read()
-        image = Image.open(io.BytesIO(contents)).convert('L')
+        image = Image.open(io.BytesIO(contents))
+        image_array = preprocess_image(image)
 
-        # Логгирование информации об изображении
-        logger.info(f"Получено изображение: {file.filename}, размер: {image.size}, режим: {image.mode}")
-
-        # Подготовка изображения для модели
-        image = image.resize((28, 28))
-        image_array = 255 - np.array(image)  # Инверсия цветов как в MNIST
-        image_array = image_array.astype('float32') / 255.0
-        image_array = image_array.reshape(1, 28, 28, 1)
-
-        # Предсказание
         prediction = model.predict(image_array)
-        predicted_digit = int(np.argmax(prediction))
+        digit = int(np.argmax(prediction))
         confidence = float(np.max(prediction))
-        processing_time = time.time() - start_time
-
-        logger.info(f"Предсказание: цифра {predicted_digit} с уверенностью {confidence:.2f}")
 
         return {
-            "digit": predicted_digit,
+            "digit": digit,
             "confidence": confidence,
-            "processing_time": processing_time
+            "processing_time": time.time() - start_time
         }
-
     except Exception as e:
-        error_msg = f"Ошибка обработки изображения: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        raise HTTPException(status_code=500, detail=error_msg)
+        logger.error(f"Ошибка: {str(e)}")
+        raise HTTPException(500, detail="Ошибка обработки изображения")
 
 
-# Пример тестового запроса для документации
-@app.get("/test/", include_in_schema=False)
-async def test_prediction():
-    """Тестовый запрос с примером изображения"""
-    test_image_path = Path("static/test_digit.png")
-    if not test_image_path.exists():
-        raise HTTPException(status_code=404, detail="Тестовое изображение не найдено")
+@app.get("/examples/")
+async def get_examples_list():
+    """Возвращает список доступных примеров"""
+    examples = [f.stem for f in Path("static/test_digits").glob("*.jpg")]
+    return {"examples": examples}
 
-    with open(test_image_path, "rb") as f:
-        return await predict_digit(UploadFile(file=f, filename="test_digit.png"))
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)

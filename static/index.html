@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Распознавание рукописных цифр</title>
+    <title>Распознавание цифр MNIST</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 600px;
+            max-width: 800px;
             margin: 0 auto;
             padding: 20px;
             text-align: center;
@@ -15,42 +15,61 @@
         .container {
             display: flex;
             flex-direction: column;
-            align-items: center;
             gap: 20px;
         }
-        .drawing-container {
-            position: relative;
-            margin: 20px 0;
+        .mode-switcher {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
         }
-        #drawingCanvas {
-            border: 2px solid #000;
+        .mode-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #2196F3;
+            color: white;
+        }
+        .mode-btn.active {
+            background-color: #0b7dda;
+            font-weight: bold;
+        }
+        canvas {
+            border: 2px solid #333;
             background-color: black;
+            margin: 0 auto;
             cursor: crosshair;
         }
         .button-group {
             display: flex;
-            gap: 10px;
             justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
         }
         button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 15px;
+            padding: 10px 20px;
             border: none;
-            border-radius: 4px;
+            border-radius: 5px;
             cursor: pointer;
             font-size: 16px;
         }
-        button:disabled {
-            background-color: #cccccc;
+        #recognizeBtn {
+            background-color: #4CAF50;
+            color: white;
         }
         #clearBtn {
             background-color: #f44336;
+            color: white;
+        }
+        #exampleBtn {
+            background-color: #FF9800;
+            color: white;
         }
         #result {
-            margin-top: 20px;
             padding: 15px;
             border-radius: 5px;
+            margin-top: 20px;
             display: none;
         }
         .success {
@@ -61,21 +80,15 @@
             background-color: #f2dede;
             color: #a94442;
         }
+        #preview {
+            max-width: 280px;
+            margin: 10px auto;
+            display: none;
+        }
         .upload-section {
             border: 2px dashed #ccc;
             padding: 20px;
             border-radius: 5px;
-            width: 100%;
-        }
-        .mode-switcher {
-            margin: 15px 0;
-        }
-        .mode-btn {
-            background-color: #2196F3;
-        }
-        .active-mode {
-            background-color: #0b7dda;
-            font-weight: bold;
         }
     </style>
 </head>
@@ -84,27 +97,24 @@
         <h1>Распознавание рукописных цифр</h1>
 
         <div class="mode-switcher">
-            <button id="drawModeBtn" class="mode-btn active-mode">Режим рисования</button>
+            <button id="drawModeBtn" class="mode-btn active">Режим рисования</button>
             <button id="uploadModeBtn" class="mode-btn">Режим загрузки</button>
         </div>
 
         <div id="drawSection">
-            <p>Нарисуйте цифру в поле ниже:</p>
-            <div class="drawing-container">
-                <canvas id="drawingCanvas" width="280" height="280"></canvas>
-            </div>
+            <canvas id="drawingCanvas" width="280" height="280"></canvas>
             <div class="button-group">
                 <button id="clearBtn">Очистить</button>
+                <button id="exampleBtn">Пример</button>
                 <button id="recognizeBtn">Распознать</button>
             </div>
         </div>
 
         <div id="uploadSection" style="display: none;">
             <div class="upload-section">
-                <p>Загрузите изображение с рукописной цифрой:</p>
                 <input type="file" id="fileInput" accept="image/*">
                 <p>или перетащите изображение сюда</p>
-                <img id="preview" style="max-width: 280px; display: none;" alt="Предпросмотр">
+                <img id="preview" alt="Предпросмотр">
             </div>
             <div class="button-group">
                 <button id="uploadRecognizeBtn">Распознать</button>
@@ -121,65 +131,42 @@
         const drawModeBtn = document.getElementById('drawModeBtn');
         const uploadModeBtn = document.getElementById('uploadModeBtn');
         const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
         const clearBtn = document.getElementById('clearBtn');
+        const exampleBtn = document.getElementById('exampleBtn');
         const recognizeBtn = document.getElementById('recognizeBtn');
         const fileInput = document.getElementById('fileInput');
         const preview = document.getElementById('preview');
         const uploadRecognizeBtn = document.getElementById('uploadRecognizeBtn');
         const resultDiv = document.getElementById('result');
 
-        // Контекст рисования
-        const ctx = canvas.getContext('2d');
-        let isDrawing = false;
-
         // Настройки рисования
+        let isDrawing = false;
         ctx.strokeStyle = 'white';
         ctx.lineWidth = 15;
         ctx.lineCap = 'round';
 
-        // Очистка холста
+        // Инициализация
+        clearCanvas();
+
+        // Функции рисования
         function clearCanvas() {
             ctx.fillStyle = 'black';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
 
-        // Инициализация
-        clearCanvas();
-
-        // Обработчики событий рисования
-        canvas.addEventListener('mousedown', startDrawing);
-        canvas.addEventListener('touchstart', startDrawing);
-        canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('touchmove', draw);
-        canvas.addEventListener('mouseup', stopDrawing);
-        canvas.addEventListener('touchend', stopDrawing);
-        canvas.addEventListener('mouseout', stopDrawing);
-
         function startDrawing(e) {
             isDrawing = true;
             draw(e);
-            e.preventDefault();
         }
 
         function draw(e) {
             if (!isDrawing) return;
 
-            // Получаем координаты
             const rect = canvas.getBoundingClientRect();
-            let clientX, clientY;
+            const x = (e.clientX || e.touches[0].clientX) - rect.left;
+            const y = (e.clientY || e.touches[0].clientY) - rect.top;
 
-            if (e.type.includes('touch')) {
-                clientX = e.touches[0].clientX;
-                clientY = e.touches[0].clientY;
-            } else {
-                clientX = e.clientX;
-                clientY = e.clientY;
-            }
-
-            const x = clientX - rect.left;
-            const y = clientY - rect.top;
-
-            // Рисуем
             ctx.lineTo(x, y);
             ctx.stroke();
             ctx.beginPath();
@@ -191,31 +178,38 @@
             ctx.beginPath();
         }
 
-        // Очистка холста
+        // Обработчики событий
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('touchstart', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('touchmove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('touchend', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
         clearBtn.addEventListener('click', clearCanvas);
 
-        // Переключение между режимами
+        // Переключение режимов
         drawModeBtn.addEventListener('click', () => {
             drawSection.style.display = 'block';
             uploadSection.style.display = 'none';
-            drawModeBtn.classList.add('active-mode');
-            uploadModeBtn.classList.remove('active-mode');
+            drawModeBtn.classList.add('active');
+            uploadModeBtn.classList.remove('active');
         });
 
         uploadModeBtn.addEventListener('click', () => {
             drawSection.style.display = 'none';
             uploadSection.style.display = 'block';
-            uploadModeBtn.classList.add('active-mode');
-            drawModeBtn.classList.remove('active-mode');
+            uploadModeBtn.classList.add('active');
+            drawModeBtn.classList.remove('active');
         });
 
-        // Обработка загрузки файла
-        fileInput.addEventListener('change', function(e) {
+        // Загрузка файла
+        fileInput.addEventListener('change', handleFileUpload);
+
+        function handleFileUpload(e) {
             const file = e.target.files[0];
-            if (!file.type.match('image.*')) {
-                showResult('Пожалуйста, выберите файл изображения', false);
-                return;
-            }
+            if (!file.type.match('image.*')) return;
 
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -223,14 +217,11 @@
                 preview.style.display = 'block';
             };
             reader.readAsDataURL(file);
-        });
+        }
 
-        // Обработка перетаскивания файла
-        uploadSection.addEventListener('dragover', function(e) {
-            e.preventDefault();
-        });
-
-        uploadSection.addEventListener('drop', function(e) {
+        // Перетаскивание файла
+        uploadSection.addEventListener('dragover', (e) => e.preventDefault());
+        uploadSection.addEventListener('drop', (e) => {
             e.preventDefault();
             if (e.dataTransfer.files.length) {
                 fileInput.files = e.dataTransfer.files;
@@ -239,9 +230,52 @@
             }
         });
 
-        // Отправка нарисованного изображения
-        recognizeBtn.addEventListener('click', async function() {
-            // Создаем временный холст для подготовки изображения
+        // Загрузка примера
+        exampleBtn.addEventListener('click', loadExample);
+
+        async function loadExample() {
+            try {
+                const response = await fetch('/examples/');
+                const data = await response.json();
+                if (!data.examples || data.examples.length === 0) {
+                    throw new Error('Примеры не найдены');
+                }
+
+                // Выбираем случайный пример
+                const randomExample = data.examples[Math.floor(Math.random() * data.examples.length)];
+                const exampleUrl = `/static/test_digits/${randomExample}.jpg`;
+
+                // Загружаем изображение
+                const imgResponse = await fetch(exampleUrl);
+                if (!imgResponse.ok) throw new Error('Ошибка загрузки примера');
+
+                const blob = await imgResponse.blob();
+                const file = new File([blob], `example_${randomExample}.jpg`, { type: 'image/jpeg' });
+
+                // Отображаем в соответствующем режиме
+                if (drawSection.style.display !== 'none') {
+                    // В режиме рисования - загружаем на canvas
+                    const img = await createImageBitmap(blob);
+                    clearCanvas();
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                } else {
+                    // В режиме загрузки - показываем превью
+                    preview.src = URL.createObjectURL(blob);
+                    preview.style.display = 'block';
+                    fileInput.files = [file];
+                }
+
+            } catch (error) {
+                showResult(`Ошибка загрузки примера: ${error.message}`, false);
+            }
+        }
+
+        // Отправка на сервер
+        recognizeBtn.addEventListener('click', () => sendCanvasImage());
+        uploadRecognizeBtn.addEventListener('click', () => sendUploadedImage());
+
+        async function sendCanvasImage() {
+            // Подготовка canvas к отправке
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = 28;
             tempCanvas.height = 28;
@@ -251,7 +285,6 @@
             tempCtx.drawImage(canvas, 0, 0, 28, 28);
             const imageData = tempCtx.getImageData(0, 0, 28, 28);
 
-            // Инверсия цветов (MNIST использует белые цифры на черном фоне)
             for (let i = 0; i < imageData.data.length; i += 4) {
                 const brightness = 255 - imageData.data[i];
                 imageData.data[i] = brightness;
@@ -262,21 +295,19 @@
 
             // Конвертируем в Blob и отправляем
             tempCanvas.toBlob(async (blob) => {
-                await sendImage(blob);
+                await sendToServer(blob);
             }, 'image/png');
-        });
+        }
 
-        // Отправка загруженного изображения
-        uploadRecognizeBtn.addEventListener('click', async function() {
+        async function sendUploadedImage() {
             if (!fileInput.files.length) {
                 showResult('Пожалуйста, выберите изображение', false);
                 return;
             }
-            await sendImage(fileInput.files[0]);
-        });
+            await sendToServer(fileInput.files[0]);
+        }
 
-        // Функция отправки изображения на сервер
-        async function sendImage(imageBlob) {
+        async function sendToServer(imageBlob) {
             resultDiv.style.display = 'none';
 
             const formData = new FormData();
@@ -307,7 +338,6 @@
             }
         }
 
-        // Отображение результата
         function showResult(message, isSuccess) {
             resultDiv.innerHTML = message;
             resultDiv.className = isSuccess ? 'success' : 'error';
