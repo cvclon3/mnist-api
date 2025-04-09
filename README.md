@@ -2,6 +2,10 @@
 
 ---
 
+## [Гайд](./How-to-do)
+
+---
+
 ### Для запуска
 ```bash
 uvicorn main:app --reload
@@ -12,9 +16,14 @@ uvicorn main:app --reload
 ---
 
 ### Интерфейс
-![default](./img/img_default.png)
+#### Главная страничка:
+![img_default.png](./img/img_default.png)
 
-![example](./img/img_example.png)
+#### Страничка загрузки:
+![img_upload.png](./img/img_upload.png)
+
+#### Пример использования:
+![img_example.png](./img/img_example.png)
 
 ---
 
